@@ -2,52 +2,54 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 
-# 1. Генерация чисел по равномерному распределению
-def generate_uniform(size, low=0, high=1):
-    uniform_numbers = np.random.uniform(low, high, size)
-    return uniform_numbers
 
-# 2. Генерация чисел по нормальному распределению
-def generate_normal(size, mean=0, std_dev=1):
-    normal_numbers = np.random.normal(mean, std_dev, size)
-    return normal_numbers
+class GeneratingNumbers (object):
+    def option_recognition(self, distribution_options, amount_of_numbers, parametr1, parametr2):
+        # 1. Генерация чисел по равномерному распределению
+        if distribution_options == 1:
+            numbers = np.random.uniform(parametr1, parametr2, amount_of_numbers)
 
-# 3. Генерация чисел по распределению закона Пирса (распределение Бета)
-def generate_beta(size, a=2, b=5):
-    beta_numbers = np.random.beta(a, b, size)
-    return beta_numbers
+        # 2. Генерация чисел по нормальному распределению
+        if distribution_options == 2:
+            numbers = np.random.normal(parametr1, parametr2, amount_of_numbers)
 
-# 4. Генерация чисел по распределению Фишера (распределение F)
-def generate_fisher(size, dfn=5, dfd=2):
-    fisher_numbers = np.random.f(dfn, dfd, size)
-    return fisher_numbers
+        # 3. Генерация чисел по распределению закона Пирса (распределение Бета)
+        if distribution_options == 3:
+            numbers = np.random.beta(parametr1, parametr2, amount_of_numbers)
 
-# Пример использования функций
-size = 1000
+        # 4. Генерация чисел по распределению Фишера (распределение F)
+        if distribution_options == 4:
+            numbers = np.random.f(parametr1, parametr2, amount_of_numbers)
+        return numbers
+    
+    def data_save(self, numbers):
+        #запись данных в файл, через ; с двумя цифрами после запятой, позже можно будет исправить на n-ое кол-во после запятой
+        np.savetxt("random_data.csv", numbers, delimiter=";", fmt="%d")
 
-uniform_data = generate_uniform(size)
-normal_data = generate_normal(size)
-beta_data = generate_beta(size)
-fisher_data = generate_fisher(size)
+    #можем ли мы сделать метод визуализации (?) - однозначно!
+    def visualisation(self, numbers):
+        plt.subplot(2, 2, 1)
+        plt.hist(numbers, bins=30, alpha=0.7, color='blue')
+        plt.show()
+    
+
+distribution_options = int(input ("select the distribution option, 1 - uniform, 2 - normal, 3 - Pierce's law, 4 - Fisher's law  "))
+
+amount_of_numbers = int(input("set the number of generated numbers  "))
+
+print("write a range of numbers   ")
+
+#для последних двух действует ограничение: они > 0 
+parametr1 = int(input())
+parametr2 = int(input())
+
+obj = GeneratingNumbers()
+
+#сохраним массив для визуализации
+our_data = obj.option_recognition(distribution_options, amount_of_numbers, parametr1, parametr2)
+
+#сохраняем его в csv
+obj.data_save(our_data)
 
 # Визуализация результатов
-plt.figure(figsize=(12, 10))
-
-plt.subplot(2, 2, 1)
-plt.hist(uniform_data, bins=30, alpha=0.7, color='blue')
-plt.title('Равномерное распределение')
-
-plt.subplot(2, 2, 2)
-plt.hist(normal_data, bins=30, alpha=0.7, color='green')
-plt.title('Нормальное распределение')
-
-plt.subplot(2, 2, 3)
-plt.hist(beta_data, bins=30, alpha=0.7, color='orange')
-plt.title('Распределение закона Пирса (Бета)')
-
-plt.subplot(2, 2, 4)
-plt.hist(fisher_data, bins=30, alpha=0.7, color='red')
-plt.title('Распределение Фишера')
-
-plt.tight_layout()
-plt.show()
+obj.visualisation(our_data)
