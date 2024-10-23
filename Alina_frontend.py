@@ -7,21 +7,25 @@ from PyQt5.QtCore import Qt
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from sklearn.linear_model import LinearRegression
+from generate_data_csv import generate_and_save_data
 
 class MyFigure(FigureCanvas):
     def __init__(self):
         self.figure = Figure(figsize=(5, 5))
         super().__init__(self.figure)
-
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_title('Здесь будет график из CSV')
+        self.ax.set_title('Тестовый график')
         self.ax.grid(True)
 
-    def plot_data(self, x, y):
+    def plot_data(self, x, y, regression_line=None):
         self.ax.clear()
-        self.ax.plot(x, y)
-        self.ax.set_title('Данные из CSV')
+        self.ax.plot(x, y, 'o', label='Данные')
+        if regression_line is not None:
+            self.ax.plot(x, regression_line, color='red', label='Регрессия')
+        self.ax.set_title('Данные и регрессионная линия')
         self.ax.grid(True)
+        self.ax.legend()
         self.draw()
 
 class MainWindow(QMainWindow):
@@ -32,7 +36,6 @@ class MainWindow(QMainWindow):
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-
         self.layout = QHBoxLayout(self.central_widget)
 
         self.animation_fig = MyFigure()
@@ -44,6 +47,10 @@ class MainWindow(QMainWindow):
         self.button = QPushButton('Открыть CSV файл')
         self.button.clicked.connect(self.load_csv)
         self.layout.addWidget(self.button)
+
+        self.generate_button = QPushButton('Сгенерировать данные')
+        self.generate_button.clicked.connect(self.generate_data_and_plot)
+        self.layout.addWidget(self.generate_button)
 
         self.start_animation()
 
@@ -65,12 +72,26 @@ class MainWindow(QMainWindow):
             file_name, _ = QFileDialog.getOpenFileName(self, 'Открыть CSV файл', '', 'CSV files (*.csv);;All files (*)')
             if file_name:
                 data = pd.read_csv(file_name)
-                # Предполагаем, что данные находятся в первых двух столбцах
-                x = data.iloc[:, 0]
-                y = data.iloc[:, 1]
+                x = data['x']
+                y = data['y']
                 self.csv_fig.plot_data(x, y)
+                self.plot_regression(x, y)
         except Exception as e:
-            QMessageBox.critical(self, 'Ошибка', f'Произошла ошибка при загрузке файла: {e}')
+            QMessageBox.critical(self, 'Ошибка', f'Ошибка при загрузке файла: {e}')
+
+    def plot_regression(self, x, y):
+        model = LinearRegression()
+        x_reshaped = x.values.reshape(-1, 1)
+        model.fit(x_reshaped, y)
+        y_pred = model.predict(x_reshaped)
+        self.csv_fig.plot_data(x, y, y_pred)
+
+    def generate_data_and_plot(self):
+        try:
+            file_name = generate_and_save_data()
+            self.load_csv(file_name)
+        except Exception as e:
+            QMessageBox.critical(self, 'Ошибка', f'Ошибка во время генерации данных: {e}')
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
