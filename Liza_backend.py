@@ -3,6 +3,7 @@ import os
 import sqlite3
 from sqlalchemy import create_engine
 from pymongo import MongoClient
+import statsmodels.api as sm
 from typing import Union
 
 
@@ -94,6 +95,78 @@ def filter_dataframe(df: pd.DataFrame, filter_type: str = 'any', columns: list[s
     else:
         return filtered_df
 
+def save_dataframe_to_db(df: pd.DataFrame, db_type: str, **kwargs) -> None:
+    """
+Сохранение данных в базу данных.
+"""
+    try:
+        if db_type == 'sqlite':
+            db_path = kwargs['db_path']
+            engine = create_engine(f'sqlite:///{db_path}')
+            df.to_sql('table_name', con=engine, index=False, if_exists='replace')
+
+        elif db_type == 'postgres':
+            user = kwargs['user']
+            password = kwargs['password']
+            host = kwargs['host']
+            port = kwargs['port']
+            dbname = kwargs['dbname']
+            engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{dbname}')
+            df.to_sql('table_name', con=engine, index=False, if_exists='replace')
+
+        elif db_type == 'mysql':
+            user = kwargs['user']
+            password = kwargs['password']
+            host = kwargs['host']
+            port = kwargs['port']
+            dbname = kwargs['dbname']
+            engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}:{port}/{dbname}')
+            df.to_sql('table_name', con=engine, index=False, if_exists='replace')
+
+        elif db_type == 'mongodb':
+            connection_string = kwargs['connection_string']
+            database_name = kwargs['database']
+            collection_name = kwargs['collection']
+
+            client = MongoClient(connection_string)
+            db = client[database_name]
+            collection = db[collection_name]
+
+            # Convert DataFrame to a list of dictionaries
+            data_dict = df.to_dict("records")
+            collection.delete_many({})  # Clear existing data
+            collection.insert_many(data_dict)
+
+        else:
+            raise ValueError("Unsupported db_type. Choose from 'sqlite', 'postgres', 'mysql', 'mongodb'.")
+
+    except KeyError as e:
+        print(f"Missing required parameter: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+def calculate_mnk_coefficients(df: pd.DataFrame, target_column: str):
+    """
+    Вычисляет коэффициенты метода наименьших квадратов (МНК) для заданного DataFrame.
+
+    """
+
+    if target_column not in df.columns:
+        raise ValueError(f"Целевая переменная '{target_column}' не найдена в DataFrame.")
+
+    Y = df[target_column]
+
+    X = df.drop(columns=[target_column])
+
+    X = sm.add_constant(X)
+
+    if X.shape[0] < X.shape[1]:
+        raise ValueError("Недостаточно данных для вычисления коэффициентов.")
+
+    model = sm.OLS(Y, X).fit()
+
+    return model.params
 
 if __name__ == "__main__":
     file_path = 'data.csv'
