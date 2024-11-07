@@ -1,10 +1,12 @@
 import pandas as pd
+import numpy as np
 import os
 import sqlite3
 from sqlalchemy import create_engine
 from pymongo import MongoClient
 import statsmodels.api as sm
-from typing import Union
+from scipy.optimize import minimize
+from typing import Union, Callable
 
 
 def read_csv_to_dataframe(file_path: str) -> pd.DataFrame:
@@ -146,6 +148,23 @@ def save_dataframe_to_db(df: pd.DataFrame, db_type: str, **kwargs) -> None:
         print(f"An error occurred: {e}")
 
 
+def create_linear_function(params: np.ndarray) -> function:
+    """
+    Создает функцию линейной регрессии на основе заданных параметров модели.
+
+    """
+
+    if len(params) == 0:
+        raise ValueError("Параметры модели не могут быть пустыми.")
+
+    def linear_function(*args):
+        if len(args) != len(params) - 1:
+            raise ValueError(f"Количество аргументов должно быть {len(params) - 1}, но получено {len(args)}.")
+
+        return params[0] + np.sum(k * x for k, x in zip(params[1:], args))
+
+    return linear_function
+
 def calculate_mnk_coefficients(df: pd.DataFrame, target_column: str):
     """
     Вычисляет коэффициенты метода наименьших квадратов (МНК) для заданного DataFrame.
@@ -167,6 +186,64 @@ def calculate_mnk_coefficients(df: pd.DataFrame, target_column: str):
     model = sm.OLS(Y, X).fit()
 
     return model.params
+
+
+def calculate_rmse(df: pd.DataFrame, model_function: Callable, target_column: str):
+    """
+    Вычисляет среднеквадратичное отклонение (СКО) для линейной регрессии.
+
+    """
+    if target_column not in df.columns:
+        raise ValueError(f"Целевая колонка '{target_column}' не найдена в DataFrame.")
+
+    if df.empty:
+        raise ValueError("DataFrame не должен быть пустым.")
+
+    if not callable(model_function):
+        raise TypeError("model_function должна быть вызываемым объектом (функцией).")
+
+    y_actual = df[target_column].values
+    x_values = df.drop(columns=[target_column]).values
+
+    y_predicted = np.array([model_function(*x) for x in x_values])
+
+    rmse = np.sqrt(np.mean(np.power(y_actual - y_predicted, 2)))
+
+    return rmse
+
+
+def regression_with_loss_function(df: pd.DataFrame, target_column: str, functions: list[Callable],
+                                  loss_function: Callable) -> dict[Callable, float]:
+    """
+    Строит регрессию на основе заданных функций и минимизирует функцию потерь.
+
+    """
+
+    if target_column not in df.columns:
+        raise ValueError(f"Целевая колонка '{target_column}' не найдена в DataFrame.")
+
+    if df.empty:
+        raise ValueError("DataFrame не должен быть пустым.")
+
+    if not isinstance(functions, list) or not all(callable(func) for func in functions):
+        raise TypeError("Список функций должен содержать только вызываемые объекты (функции).")
+
+    results = {}
+
+    for func in functions:
+        initial_params = np.zeros(len(func.__code__.co_varnames))
+
+        def objective_function(params):
+            predictions = df.apply(lambda row: func(*row.values[:-1], *params), axis=1)
+
+            return loss_function(df[target_column].values, predictions)
+
+        result = minimize(objective_function, initial_params)
+
+        results[func.__name__] = result.fun
+
+    return results
+
 
 if __name__ == "__main__":
     file_path = 'data.csv'
