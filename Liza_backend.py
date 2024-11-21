@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from pymongo import MongoClient
 import statsmodels.api as sm
 from scipy.optimize import minimize
+import scipy.stats as stats
 from typing import Union, Callable
 
 class DataEditor:
@@ -380,6 +381,123 @@ class MathFunctions:
 
         return results
 
+    def confidence_interval(df: pd.DataFrame, target_column: str, confidence_level: float = 0.95) -> tuple:
+        """
+        Вычисляет доверительный интервал для стандартного отклонения зависимой переменной.
+
+        :param df: pandas DataFrame, содержащий данные с зависимой переменной.
+        :param target_column: строка, имя столбца зависимой переменной.
+        :param confidence_level: уровень доверия (по умолчанию 0.95). Должен быть в диапазоне (0, 1).
+        :return: кортеж (нижняя граница, верхняя граница) доверительного интервала для стандартного отклонения.
+
+        :raises ValueError: если target_column не существует в DataFrame или если confidence_level не в диапазоне (0, 1).
+        """
+
+        if target_column not in df.columns:
+            raise ValueError(f"Столбец '{target_column}' не найден в DataFrame.")
+
+        if not (0 < confidence_level < 1):
+            raise ValueError("Уровень доверия должен быть в диапазоне (0, 1).")
+
+        data = df[target_column].dropna()
+
+        n = len(data)
+        if n < 2:
+            raise ValueError(
+                "Недостаточно данных для расчета доверительного интервала (необходимы как минимум 2 наблюдения).")
+
+        std_dev = np.std(data, ddof=1)
+
+        std_error = std_dev / np.sqrt(n)
+
+        alpha = 1 - confidence_level
+        critical_value = stats.t.ppf(1 - alpha / 2, df=n - 1)
+
+        margin_of_error = critical_value * std_error
+        lower_bound = std_dev - margin_of_error
+        upper_bound = std_dev + margin_of_error
+
+        return lower_bound, upper_bound
+
+    def calculate_r_squared(df: pd.DataFrame, target_column: str, regression: list) -> float:
+        """
+        Рассчитывает коэффициент детерминации (R²) по формуле.
+
+        :param df: DataFrame с данными.
+        :param target_column: Название колонки с целевой переменной.
+        :param regression: Список значений независимых переменных.
+        :return: Коэффициент детерминации (R²).
+        """
+
+        y = df[target_column].values
+
+        y_pred = np.array(regression)
+
+        ss_total = np.sum((y - np.mean(y)) ** 2)  # Общая сумма квадратов
+        ss_residual = np.sum((y - y_pred) ** 2)  # Остаточная сумма квадратов
+
+        r_squared = 1 - (ss_residual / ss_total)
+
+        return r_squared
+
+
+import numpy as np
+import pandas as pd
+from scipy import stats
+
+
+def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
+    """
+    Проверяет значимость регрессии по критерию Фишера.
+
+    :param df: DataFrame с данными.
+    :param target_column: Название колонки с целевой переменной.
+    :param regression: Список значений независимых переменных.
+    :param alpha: Уровень значимости.
+    :return: Словарь с результатами теста.
+    """
+
+    if target_column not in df.columns:
+        return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
+
+    if df.empty:
+        return {'Error': 'DataFrame пуст.'}
+
+    y = df[target_column].values
+
+    if len(y) == 0:
+        return {'Error': f'Целевая переменная "{target_column}" пуста.'}
+
+        y_pred = np.array(regression)
+
+    if len(X) != len(y):
+        return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
+
+    ss_total = np.sum((y - np.mean(y)) ** 2)
+    ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
+    ss_residual = np.sum((y - y_pred) ** 2)
+
+    n = len(y)
+    k = X.shape[1] - 1
+
+    if n <= k:
+        return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
+
+    ms_regression = ss_regression / k
+    ms_residual = ss_residual / (n - k - 1)
+
+    f_statistic = ms_regression / ms_residual
+
+    p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
+
+    significant = p_value < alpha
+
+    return {
+        'F-statistic': f_statistic,
+        'p-value': p_value,
+        'Significant': significant
+    }
+
 
 if __name__ == "__main__":
     file_path = 'data.csv'
@@ -388,7 +506,6 @@ if __name__ == "__main__":
         print(df)
     except Exception as e:
         print(e)
-
     print(df)
     y = MathFunctions.create_linear_function([4.7, 0.6, -4.1])
     print(MathFunctions.calculate_rmse(df, y, "Y"))
