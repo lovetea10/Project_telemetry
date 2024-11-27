@@ -17,7 +17,7 @@ def run_regression(df, target_column):
 
 # Тестирование функции
 def test_run_regression():
-    # Создание тестового DataFrame
+
     data = {
         'feature1': [1, 2, 3, 4, 5],
         'feature2': [2, 3, 4, 5, 6],

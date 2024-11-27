@@ -2,7 +2,6 @@ import unittest
 import pandas as pd
 import numpy as np
 
-# Предположим, что ваш код находится в функции, например, calculate_rmse
 def calculate_rmse(df, target_column, model_function):
     if target_column not in df.columns:
         raise ValueError(f"Целевая колонка '{target_column}' не найдена в DataFrame.")
