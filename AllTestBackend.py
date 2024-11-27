@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import tempfile
 from typing import Union
-from Liza_backend import DataEditor # Замените 'your_module' на имя вашего модуля
+from Liza_backend import DataEditor 
 
 class TestReadCSVToDataFrame(unittest.TestCase):
 
