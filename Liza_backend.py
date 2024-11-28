@@ -34,6 +34,7 @@ class DataEditor:
         except Exception as e:
             raise Exception(f"Произошла ошибка при чтении файла '{absolute_path}': {str(e)}")
 
+
     def get_data_from_db(db_type: str, **kwargs) -> pd.DataFrame:
         """
         Получение данных из базы данных.
@@ -41,45 +42,6 @@ class DataEditor:
         Параметры:
             db_type (str): Тип базы данных ('sqlite', 'postgres', 'mysql', 'mongodb').
             **kwargs: Дополнительные параметры в зависимости от типа базы данных.
-
-        Для каждого типа базы данных:
-
-        1. SQLite:
-            - db_path (str): Путь к файлу базы данных.
-            - query (str): SQL-запрос для выполнения.
-
-        Пример:
-            df = get_data_from_db('sqlite', db_path='my_database.db', query='SELECT * FROM my_table')
-
-        2. PostgreSQL:
-            - user (str): Имя пользователя.
-            - password (str): Пароль.
-            - host (str): Хост (например, 'localhost').
-            - port (str): Порт (по умолчанию '5432').
-            - dbname (str): Имя базы данных.
-            - query (str): SQL-запрос для выполнения.
-
-        Пример:
-            df = get_data_from_db('postgres', user='user', password='pass', host='localhost', port='5432', dbname='my_db', query='SELECT * FROM my_table')
-
-        3. MySQL:
-            - user (str): Имя пользователя.
-            - password (str): Пароль.
-            - host (str): Хост (например, 'localhost').
-            - port (str): Порт (по умолчанию '3306').
-            - dbname (str): Имя базы данных.
-            - query (str): SQL-запрос для выполнения.
-
-        Пример:
-            df = get_data_from_db('mysql', user='user', password='pass', host='localhost', port='3306', dbname='my_db', query='SELECT * FROM my_table')
-
-        4. MongoDB:
-            - connection_string (str): Строка подключения к MongoDB.
-            - database (str): Имя базы данных.
-            - collection (str): Имя коллекции для выборки данных.
-
-        Пример:
-            df = get_data_from_db('mongodb', connection_string='mongodb://localhost:27017/', database='my_db', collection='my_collection')
 
         Возвращает:
             pd.DataFrame: Данные, полученные из базы данных в виде DataFrame.
@@ -92,13 +54,11 @@ class DataEditor:
                 conn.close()
 
             elif db_type == 'postgres':
-                engine = create_engine(
-                    f"postgresql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
+                engine = create_engine(f"postgresql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
                 df = pd.read_sql_query(kwargs['query'], engine)
 
             elif db_type == 'mysql':
-                engine = create_engine(
-                    f"mysql+pymysql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
+                engine = create_engine(f"mysql+pymysql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
                 df = pd.read_sql_query(kwargs['query'], engine)
 
             elif db_type == 'mongodb':
@@ -128,42 +88,6 @@ class DataEditor:
         df (pd.DataFrame): DataFrame, который нужно сохранить.
         db_type (str): Тип базы данных ('sqlite', 'postgres', 'mysql', 'mongodb').
         **kwargs: Дополнительные параметры в зависимости от типа базы данных.
-
-    Для каждого типа базы данных:
-
-    1. SQLite:
-        - db_path (str): Путь к файлу базы данных.
-
-    Пример:
-        save_dataframe_to_db(df, 'sqlite', db_path='my_database.db')
-
-    2. PostgreSQL:
-        - user (str): Имя пользователя.
-        - password (str): Пароль.
-        - host (str): Хост (например, 'localhost').
-        - port (str): Порт (по умолчанию '5432').
-        - dbname (str): Имя базы данных.
-
-    Пример:
-        save_dataframe_to_db(df, 'postgres', user='user', password='pass', host='localhost', port='5432', dbname='my_db')
-
-    3. MySQL:
-        - user (str): Имя пользователя.
-        - password (str): Пароль.
-        - host (str): Хост (например, 'localhost').
-        - port (str): Порт (по умолчанию '3306').
-        - dbname (str): Имя базы данных.
-
-    Пример:
-        save_dataframe_to_db(df, 'mysql', user='user', password='pass', host='localhost', port='3306', dbname='my_db')
-
-    4. MongoDB:
-        - connection_string (str): Строка подключения к MongoDB.
-        - database (str): Имя базы данных.
-        - collection (str): Имя коллекции для сохранения данных.
-
-    Пример:
-        save_dataframe_to_db(df, 'mongodb', connection_string='mongodb://localhost:27017/', database='my_db', collection='my_collection')
 
     Возвращает:
         None: Данные сохраняются в указанной базе данных.
@@ -440,72 +364,121 @@ class MathFunctions:
 
         return r_squared
 
+    def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
+        """
+        Проверяет значимость регрессии по критерию Фишера.
 
-import numpy as np
-import pandas as pd
-from scipy import stats
+        :param df: DataFrame с данными.
+        :param target_column: Название колонки с целевой переменной.
+        :param regression: Список значений независимых переменных.
+        :param alpha: Уровень значимости.
+        :return: Словарь с результатами теста.
+        """
 
+        if target_column not in df.columns:
+            return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
 
-def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
-    """
-    Проверяет значимость регрессии по критерию Фишера.
+        if df.empty:
+            return {'Error': 'DataFrame пуст.'}
 
-    :param df: DataFrame с данными.
-    :param target_column: Название колонки с целевой переменной.
-    :param regression: Список значений независимых переменных.
-    :param alpha: Уровень значимости.
-    :return: Словарь с результатами теста.
-    """
+        y = df[target_column].values
 
-    if target_column not in df.columns:
-        return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
-
-    if df.empty:
-        return {'Error': 'DataFrame пуст.'}
-
-    y = df[target_column].values
-
-    if len(y) == 0:
-        return {'Error': f'Целевая переменная "{target_column}" пуста.'}
+        if len(y) == 0:
+            return {'Error': f'Целевая переменная "{target_column}" пуста.'}
 
         y_pred = np.array(regression)
 
-    if len(X) != len(y):
-        return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
+        if len(X) != len(y):
+            return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
 
-    ss_total = np.sum((y - np.mean(y)) ** 2)
-    ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
-    ss_residual = np.sum((y - y_pred) ** 2)
+        ss_total = np.sum((y - np.mean(y)) ** 2)
+        ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
+        ss_residual = np.sum((y - y_pred) ** 2)
 
-    n = len(y)
-    k = X.shape[1] - 1
+        n = len(y)
+        k = X.shape[1] - 1
 
-    if n <= k:
-        return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
+        if n <= k:
+            return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
 
-    ms_regression = ss_regression / k
-    ms_residual = ss_residual / (n - k - 1)
+        ms_regression = ss_regression / k
+        ms_residual = ss_residual / (n - k - 1)
 
-    f_statistic = ms_regression / ms_residual
+        f_statistic = ms_regression / ms_residual
 
-    p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
+        p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
 
-    significant = p_value < alpha
+        significant = p_value < alpha
 
-    return {
-        'F-statistic': f_statistic,
-        'p-value': p_value,
-        'Significant': significant
-    }
+        return {
+            'F-statistic': f_statistic,
+            'p-value': p_value,
+            'Significant': significant
+        }
+
+    def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: np.ndarray,
+                                       alpha: float) -> dict:
+        """
+        Проверяет значимость регрессии по критерию Фишера.
+
+        :param df: DataFrame с данными.
+        :param target_column: Название колонки с целевой переменной.
+        :param regression: Массив предсказанных значений независимых переменных.
+        :param alpha: Уровень значимости.
+        :return: Словарь с результатами теста.
+        """
+
+        if df.empty:
+            return {'Error': 'DataFrame пуст.'}
+
+        if target_column not in df.columns:
+            return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
+
+        y = df[target_column].values
+
+        if len(y) == 0:
+            return {'Error': f'Целевая переменная "{target_column}" пуста.'}
+
+        # Проверка, что длина предсказанных значений совпадает с длиной целевой переменной
+        if len(regression) != len(y):
+            return {'Error': 'Количество наблюдений в предсказанных значениях и целевой переменной не совпадает.'}
+
+        ss_total = np.sum((y - np.mean(y)) ** 2)
+        ss_regression = np.sum((regression - np.mean(y)) ** 2)
+        ss_residual = np.sum((y - regression) ** 2)
+
+        n = len(y)
+        k = len(regression) - 1  # Количество независимых переменных
+
+        if n <= k:
+            return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
+
+        ms_regression = ss_regression / k
+        ms_residual = ss_residual / (n - k - 1)
+
+        f_statistic = ms_regression / ms_residual
+
+        p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
+
+        significant = p_value < alpha
+
+        return {
+            'F-statistic': f_statistic,
+            'p-value': p_value,
+            'Significant': significant
+        }
 
 
 if __name__ == "__main__":
-    file_path = 'data.csv'
-    try:
-        df = DataEditor.read_csv_to_dataframe(file_path)
-        print(df)
-    except Exception as e:
-        print(e)
-    print(df)
-    y = MathFunctions.create_linear_function([4.7, 0.6, -4.1])
-    print(MathFunctions.calculate_rmse(df, y, "Y"))
+    df = pd.DataFrame({
+        'A': [1, 2, 3, 4],
+        'B': [2, 4, 6, 9],
+        'C': [1, 3, 2, 4],
+        'target': [1, 2, 3, 4]
+    })
+    y = MathFunctions.create_linear_function([4.7, 0.6, 1.0, -4.1])
+    print(MathFunctions.calculate_rmse(df, y, "target"))
+    result = MathFunctions.check_multicollinearity(df, 'target')
+    print("Мультиколлинеарные параметры:", result)
+
+
