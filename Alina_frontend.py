@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from Liza_backend import read_csv_to_dataframe, calculate_mnk_coefficients  # Импортируем нужные функции из liza_backend
-import scipy.stats as stats  # Для работы с доверительными интервалами
+from Liza_backend import DataEditor, MathFunctions
+import scipy.stats as stats
 
 
 class MyFigure(FigureCanvas):
@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
         # Выбор распределений
         self.distribution1_combo = QComboBox()
         self.distribution2_combo = QComboBox()
-        self.distribution1_combo.addItems(["Нормальное", "Равномерное"])  # Примеры
+        self.distribution1_combo.addItems(["Нормальное", "Равномерное"])
         self.distribution2_combo.addItems(["Нормальное", "Равномерное"])
 
         distribution_layout = QHBoxLayout()
@@ -89,7 +89,8 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.generate_array_button)
 
         self.confidence_interval_button = QPushButton('Построить доверительный интервал')
-        self.confidence_interval_button.clicked.connect(self.build_confidence_interval)  # Обработка доверительного интервала
+        self.confidence_interval_button.clicked.connect(
+            self.build_confidence_interval)  # Обработка доверительного интервала
         button_layout.addWidget(self.confidence_interval_button)
 
         self.extra_button1 = QPushButton('Построить линейную регрессию')
@@ -97,6 +98,16 @@ class MainWindow(QMainWindow):
         self.extra_button1.clicked.connect(self.build_linear_regression)  # Подключаем функцию линейной регрессии
         button_layout.addWidget(self.extra_button1)
         button_layout.addWidget(self.extra_button2)
+
+        # Новые кнопки для вычислений
+        self.rmse_button = QPushButton('Вычислить СКО')
+        self.r_squared_button = QPushButton('Рассчитать R²')
+
+        self.rmse_button.clicked.connect(self.calculate_rmse)  # Добавляем обработчик для СКО
+        self.r_squared_button.clicked.connect(self.calculate_r_squared)  # Добавляем обработчик для R²
+
+        button_layout.addWidget(self.rmse_button)
+        button_layout.addWidget(self.r_squared_button)
 
         layout.addStretch()
         central_widget.setLayout(layout)
@@ -107,30 +118,13 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Открыть CSV файл", "", "CSV files (*.csv)")
         if file_path:
             try:
-                self.dataframe = read_csv_to_dataframe(file_path)
+                self.dataframe = DataEditor.read_csv_to_dataframe(file_path)  # Читаем CSV в DataFrame
                 QMessageBox.information(self, "Информация", f"Данные загружены из {file_path}.")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", str(e))
 
-    def build_linear_regression(self):
-        if self.dataframe is not None:
-
-            target_column = 'Построить линейную регрессию'
-            try:
-                coefficients = calculate_mnk_coefficients(self.dataframe, target_column)
-                x_values = self.dataframe.drop(columns=[target_column])
-                intercept = coefficients[0]
-                slope = coefficients[1]
-                regression_line = intercept + slope * x_values  # Расчет линейной линии регрессии
-                self.figure1.plot_data(x_values, self.dataframe[target_column], regression_line)
-                QMessageBox.information(self, "Данные линейной регрессии", f"Коэффициенты: {coefficients}")
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка", str(e))
-        else:
-            QMessageBox.warning(self, "Предупреждение", "Сначала загрузите данные из CSV.")
-
     def input_2d_array(self):
-        pass  # Заглушка;
+        pass  # Заглушка
 
     def generate_2d_array(self):
         # Генерация случайного двумерного массива
@@ -139,12 +133,77 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Сгенерированный массив", str(array))
 
     def build_confidence_interval(self):
-        sample_data = np.random.normal(0, 1, 100)  # Генерация выборки
-        confidence = 0.95
-        mean = np.mean(sample_data)
-        se = stats.sem(sample_data)
-        interval = stats.t.interval(confidence, len(sample_data)-1, loc=mean, scale=se)
-        QMessageBox.information(self, "Доверительный интервал", f"Доверительный интервал: {interval}")
+        if self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
+            return
+
+        target_column = "y"
+        try:
+            lower_bound, upper_bound = MathFunctions.confidence_interval(self.dataframe, target_column)
+            QMessageBox.information(self, "Доверительный интервал",
+                                    f"Доверительный интервал для '{target_column}': ({lower_bound}, {upper_bound})")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+
+    def build_linear_regression(self):
+        if self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
+            return
+
+        target_column = "y"
+
+        try:
+            coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
+
+            if len(self.dataframe) <= len(coefficients):
+                raise ValueError("Not enough data for regression.")
+
+            linear_func = MathFunctions.create_linear_function(coefficients)
+            x_values = self.dataframe.drop(columns=[target_column]).values
+
+            if x_values.shape[1] > 1:
+                regression_line = np.array([linear_func(*row) for row in x_values])
+            else:
+                regression_line = np.array([linear_func(x) for x in x_values.flatten()])
+
+            self.figure1.plot_data(x_values.flatten(), self.dataframe[target_column].values, regression_line)
+
+            r_squared = MathFunctions.calculate_r_squared(self.dataframe, target_column, regression_line)
+            QMessageBox.information(self, "Результат регрессии",
+                                    f"Коэффициенты: {coefficients}, R^2: {r_squared}")
+
+        except (ValueError, KeyError, Exception) as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
+    def calculate_rmse(self):
+        if self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
+            return
+
+        target_column = "y"
+        try:
+
+            coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
+            linear_func = MathFunctions.create_linear_function(coefficients)
+            rmse_value = MathFunctions.calculate_rmse(self.dataframe, linear_func, target_column)
+            QMessageBox.information(self, "Результат", f"Среднеквадратичное отклонение (СКО): {rmse_value:.4f}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
+
+    def calculate_r_squared(self):
+        if self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
+            return
+
+        target_column = "y"
+        try:
+            coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
+            linear_func = MathFunctions.create_linear_function(coefficients[::-1])
+            x_values = self.dataframe.drop(columns=[target_column]).values
+            regression_line = np.array([linear_func(*row) for row in x_values])
+            r_squared_value = MathFunctions.calculate_r_squared(self.dataframe, target_column, regression_line)
+            QMessageBox.information(self, "Результат", f"Коэффициент детерминации (R²): {r_squared_value:.4f}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", str(e))
 
     def update_graph1(self):
         # Логика обновления графика 1
