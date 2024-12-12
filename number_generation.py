@@ -36,11 +36,11 @@ class GeneratingNumbers (object):
             writer.writerow(numbers)
 
 
-    #можем ли мы сделать метод визуализации (?) - однозначно!
+    """#можем ли мы сделать метод визуализации (?) - однозначно!
     def visualisation(self, numbers):
         plt.subplot(2, 2, 1)
         plt.hist(numbers, bins=30, alpha=0.7, color='blue')
-        plt.show()
+        plt.show()"""
 
 
 class ArrayGeneration(GeneratingNumbers):
@@ -97,8 +97,8 @@ our_data1d = obj.option_recognition(distribution_options, amount_of_numbers, par
 #сохраняем его в csv
 obj.data_save(our_data1d)
 
-# Визуализация результатов
-obj.visualisation(our_data1d)
+"""# Визуализация результатов
+obj.visualisation(our_data1d)"""
 
 
 array2d = ArrayGeneration(distribution_options, size1, size2, parametr1, parametr2)
