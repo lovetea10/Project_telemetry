@@ -30,6 +30,29 @@ class MyFigure(FigureCanvas):
         self.draw()
 
 
+class PolynomialInputDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Ввод многочлена')
+        self.layout = QVBoxLayout(self)
+
+        self.input_field = QLineEdit(self)
+        self.input_field.setPlaceholderText("Введите многочлен в формате: a*x^2 + b*x + c")
+        self.layout.addWidget(self.input_field)
+
+        self.submit_button = QPushButton("Отправить", self)
+        self.submit_button.clicked.connect(self.submit)
+        self.layout.addWidget(self.submit_button)
+
+        self.polynomial = None
+
+    def submit(self):
+        text = self.input_field.text()
+        if text:
+            self.polynomial = text  # Здесь можно добавить дальнейшую обработку многочлена
+            QMessageBox.information(self, "Введённый многочлен", f"Вы ввели:\n{text}")
+            self.accept()
+
 class InputArrayDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -44,20 +67,30 @@ class InputArrayDialog(QDialog):
         self.submit_button.clicked.connect(self.submit)
         self.layout.addWidget(self.submit_button)
 
+        self.polynomial_button = QPushButton("Ввести многочлены")
+        self.polynomial_button.clicked.connect(self.open_polynomial_dialog)
+        self.layout.addWidget(self.polynomial_button)
+
         self.result = None
 
     def submit(self):
         text = self.input_field.text()
         if text:
             try:
-                # Убираем квадратные скобки и разбиваем на строки
                 if text.startswith('[') and text.endswith(']'):
                     text = text[1:-1]
-                array = np.array([list(map(float, row.split(','))) for row in text.split('],[')])
+                array = np.array([list(map(float, row.split(','))) for row in text.split(';')])
                 self.result = array
+                QMessageBox.information(self, "Введённый массив", f"Вы ввели:\n{array}")
                 self.accept()
-            except Exception as e:
+            except Exception:
                 QMessageBox.critical(self, "Ошибка ввода", "Неверный формат ввода.")
+
+    def open_polynomial_dialog(self):
+        dialog = PolynomialInputDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            print(f"Многочлен введён: {dialog.polynomial}")
+
 
 
 class MainWindow(QMainWindow):
