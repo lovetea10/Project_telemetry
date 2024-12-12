@@ -37,7 +37,7 @@ class InputArrayDialog(QDialog):
         self.layout = QVBoxLayout(self)
 
         self.input_field = QLineEdit(self)
-        self.input_field.setPlaceholderText("Введите массив в формате: a,b,c;d,e,f")
+        self.input_field.setPlaceholderText("Введите массив в формате: [a,b,c;d,e,f]")
         self.layout.addWidget(self.input_field)
 
         self.submit_button = QPushButton("Отправить", self)
@@ -48,11 +48,16 @@ class InputArrayDialog(QDialog):
 
     def submit(self):
         text = self.input_field.text()
-        try:
-            self.result = np.array([list(map(float, row.split(','))) for row in text.split(';')])
-            self.accept()
-        except Exception as e:
-            QMessageBox.critical(self, "Ошибка ввода", "Неверный формат ввода.")
+        if text:
+            try:
+                # Убираем квадратные скобки и разбиваем на строки
+                if text.startswith('[') and text.endswith(']'):
+                    text = text[1:-1]
+                array = np.array([list(map(float, row.split(','))) for row in text.split('],[')])
+                self.result = array
+                self.accept()
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка ввода", "Неверный формат ввода.")
 
 
 class MainWindow(QMainWindow):
@@ -126,7 +131,6 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.extra_button1)
         button_layout.addWidget(self.extra_button2)
 
-
         self.rmse_button = QPushButton('Вычислить СКО')
         self.r_squared_button = QPushButton('Рассчитать R²')
 
@@ -148,9 +152,15 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Введённый массив", f"Вы ввели:\n{array}")
 
     def generate_2d_array(self):
-        rows, cols = 5, 5
-        array = np.random.rand(rows, cols)
-        QMessageBox.information(self, "Сгенерированный массив", str(array))
+        rows, cols = 100, 2  # Указываем нужное количество строк и количество колонок
+        array = np.random.rand(rows, cols)  # Генерируем массив
+
+        # Сохранение массива в CSV файл в заданном формате
+        save_path = 'generated_data.csv'  # Название файла для сохранения
+        header = 'x,y'  # Заголовки столбцов
+
+        np.savetxt(save_path, array, delimiter=',', fmt='%.5f', header=header, comments='')  # Сохраняем в CSV
+        QMessageBox.information(self, "Сохранение массива", f"Массив сохранен в {save_path}.")
 
     def load_csv_data(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Открыть CSV файл", "", "CSV files (*.csv)")
