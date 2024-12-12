@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 import scipy.stats as stats
 from typing import Union, Callable
 
+
 class DataEditor:
     def read_csv_to_dataframe(file_path: str) -> pd.DataFrame:
         """
@@ -430,82 +431,110 @@ class MathFunctions:
         """
 
         y = df[target_column].values
-
         y_pred = np.array(regression)
 
-        ss_total = np.sum((y - np.mean(y)) ** 2)  # Общая сумма квадратов
-        ss_residual = np.sum((y - y_pred) ** 2)  # Остаточная сумма квадратов
+        if len(y) != len(y_pred):
+            raise ValueError("Размерности y и y_pred должны совпадать.")
+
+        ss_total = np.sum((y - np.mean(y)) ** 2)
+
+        if ss_total == 0:
+            raise ValueError("Общая сумма квадратов равна нулю. Проверьте целевую переменную.")
+
+        ss_residual = np.sum((y - y_pred) ** 2)
 
         r_squared = 1 - (ss_residual / ss_total)
 
         return r_squared
 
+    def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
+        """
+        Проверяет значимость регрессии по критерию Фишера.
 
-import numpy as np
-import pandas as pd
-from scipy import stats
+        :param df: DataFrame с данными.
+        :param target_column: Название колонки с целевой переменной.
+        :param regression: Список значений независимых переменных.
+        :param alpha: Уровень значимости.
+        :return: Словарь с результатами теста.
+        """
 
+        if target_column not in df.columns:
+            return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
 
-def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
-    """
-    Проверяет значимость регрессии по критерию Фишера.
+        if df.empty:
+            return {'Error': 'DataFrame пуст.'}
 
-    :param df: DataFrame с данными.
-    :param target_column: Название колонки с целевой переменной.
-    :param regression: Список значений независимых переменных.
-    :param alpha: Уровень значимости.
-    :return: Словарь с результатами теста.
-    """
+        y = df[target_column].values
 
-    if target_column not in df.columns:
-        return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
-
-    if df.empty:
-        return {'Error': 'DataFrame пуст.'}
-
-    y = df[target_column].values
-
-    if len(y) == 0:
-        return {'Error': f'Целевая переменная "{target_column}" пуста.'}
+        if len(y) == 0:
+            return {'Error': f'Целевая переменная "{target_column}" пуста.'}
 
         y_pred = np.array(regression)
 
-    if len(X) != len(y):
-        return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
+        if len(X) != len(y):
+            return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
 
-    ss_total = np.sum((y - np.mean(y)) ** 2)
-    ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
-    ss_residual = np.sum((y - y_pred) ** 2)
+        ss_total = np.sum((y - np.mean(y)) ** 2)
+        ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
+        ss_residual = np.sum((y - y_pred) ** 2)
 
-    n = len(y)
-    k = X.shape[1] - 1
+        n = len(y)
+        k = X.shape[1] - 1
 
-    if n <= k:
-        return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
+        if n <= k:
+            return {'Error': 'Недостаточное количество наблюдений для расчета F-статистики.'}
 
-    ms_regression = ss_regression / k
-    ms_residual = ss_residual / (n - k - 1)
+        ms_regression = ss_regression / k
+        ms_residual = ss_residual / (n - k - 1)
 
-    f_statistic = ms_regression / ms_residual
+        f_statistic = ms_regression / ms_residual
 
-    p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
+        p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
 
-    significant = p_value < alpha
+        significant = p_value < alpha
 
-    return {
-        'F-statistic': f_statistic,
-        'p-value': p_value,
-        'Significant': significant
-    }
+        return {
+            'F-statistic': f_statistic,
+            'p-value': p_value,
+            'Significant': significant
+        }
+
+    def check_multicollinearity(df: pd.DataFrame, target_column: str):
+        features = df.columns[df.columns != target_column]
+        multicollinear_features = []
+
+        y_target = df[target_column].values
+
+        for feature in features:
+            y_feature = df[feature].values
+
+            X = df[features[features != feature]].values
+
+            X = np.hstack((np.ones((X.shape[0], 1)), X))
+
+            beta = np.linalg.inv(X.T @ X) @ (X.T @ y_feature)
+
+            y_pred = X @ beta
+
+            ss_total = np.sum((y_feature - np.mean(y_feature)) ** 2)
+            ss_residual = np.sum((y_feature - y_pred) ** 2)
+            r_squared = 1 - (ss_residual / ss_total)
+
+            if r_squared > 0.7:
+                multicollinear_features.append(feature)
+
+        return multicollinear_features
 
 
 if __name__ == "__main__":
-    file_path = 'data.csv'
-    try:
-        df = DataEditor.read_csv_to_dataframe(file_path)
-        print(df)
-    except Exception as e:
-        print(e)
-    print(df)
-    y = MathFunctions.create_linear_function([4.7, 0.6, -4.1])
-    print(MathFunctions.calculate_rmse(df, y, "Y"))
+    df = pd.DataFrame({
+        'A': [1, 2, 3, 4],
+        'B': [2, 4, 6, 9],
+        'C': [1, 3, 2, 4],
+        'target': [1, 2, 3, 4]
+    })
+    y = MathFunctions.create_linear_function([4.7, 0.6, 1.0, -4.1])
+    print(y(1, 2, 3))
+    print(MathFunctions.calculate_r_squared(df, 'target', [1, 2, 3, 4.5]))
+    result = MathFunctions.check_multicollinearity(df, 'target')
+    print("Мультиколлинеарные параметры:", result)

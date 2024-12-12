@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton,
-    QFileDialog, QLabel, QHBoxLayout, QMessageBox, QLineEdit, QComboBox
+    QFileDialog, QDialog, QLabel, QHBoxLayout, QMessageBox, QLineEdit, QComboBox
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -28,6 +28,31 @@ class MyFigure(FigureCanvas):
         self.ax.grid(True)
         self.ax.legend()
         self.draw()
+
+
+class InputArrayDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Ввод двумерного массива')
+        self.layout = QVBoxLayout(self)
+
+        self.input_field = QLineEdit(self)
+        self.input_field.setPlaceholderText("Введите массив в формате: a,b,c;d,e,f")
+        self.layout.addWidget(self.input_field)
+
+        self.submit_button = QPushButton("Отправить", self)
+        self.submit_button.clicked.connect(self.submit)
+        self.layout.addWidget(self.submit_button)
+
+        self.result = None
+
+    def submit(self):
+        text = self.input_field.text()
+        try:
+            self.result = np.array([list(map(float, row.split(','))) for row in text.split(';')])
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка ввода", "Неверный формат ввода.")
 
 
 class MainWindow(QMainWindow):
@@ -75,7 +100,6 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.update_button2)
         layout.addLayout(button_layout)
 
-        # Дополнительные кнопки
         self.open_csv_button = QPushButton('Открыть файл CSV')
         self.open_csv_button.clicked.connect(self.load_csv_data)  # Обработка загрузки CSV
         button_layout.addWidget(self.open_csv_button)
@@ -95,11 +119,14 @@ class MainWindow(QMainWindow):
 
         self.extra_button1 = QPushButton('Построить линейную регрессию')
         self.extra_button2 = QPushButton('Проверка на мультиколлинеарность')
+        self.extra_button2 = QPushButton('Проверка на мультиколлинеарность')
+        self.extra_button2.clicked.connect(self.check_multicollinearity)  # Подключаем функцию проверки на мультиколлинеарность
+
         self.extra_button1.clicked.connect(self.build_linear_regression)  # Подключаем функцию линейной регрессии
         button_layout.addWidget(self.extra_button1)
         button_layout.addWidget(self.extra_button2)
 
-        # Новые кнопки для вычислений
+
         self.rmse_button = QPushButton('Вычислить СКО')
         self.r_squared_button = QPushButton('Рассчитать R²')
 
@@ -110,9 +137,20 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.r_squared_button)
 
         layout.addStretch()
-        central_widget.setLayout(layout)
 
-        self.dataframe = None  # Указываем DataFrame, который будет хранить данные
+        central_widget.setLayout(layout)
+        self.dataframe = None
+
+    def input_2d_array(self):
+        dialog = InputArrayDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            array = dialog.result
+            QMessageBox.information(self, "Введённый массив", f"Вы ввели:\n{array}")
+
+    def generate_2d_array(self):
+        rows, cols = 5, 5
+        array = np.random.rand(rows, cols)
+        QMessageBox.information(self, "Сгенерированный массив", str(array))
 
     def load_csv_data(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Открыть CSV файл", "", "CSV files (*.csv)")
@@ -122,15 +160,6 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Информация", f"Данные загружены из {file_path}.")
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", str(e))
-
-    def input_2d_array(self):
-        pass  # Заглушка
-
-    def generate_2d_array(self):
-        # Генерация случайного двумерного массива
-        rows, cols = 5, 5
-        array = np.random.rand(rows, cols)
-        QMessageBox.information(self, "Сгенерированный массив", str(array))
 
     def build_confidence_interval(self):
         if self.dataframe is None:
@@ -144,6 +173,23 @@ class MainWindow(QMainWindow):
                                     f"Доверительный интервал для '{target_column}': ({lower_bound}, {upper_bound})")
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", str(e))
+
+    def check_multicollinearity(self):
+        if self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
+            return
+
+        target_column = "y"
+        try:
+            multicollinear_features = MathFunctions.check_multicollinearity(self.dataframe, target_column)
+            if multicollinear_features:
+                QMessageBox.information(self, "Результаты проверки",
+                                        f"Обнаруженные мультиколлинеарные параметры: {', '.join(multicollinear_features)}")
+            else:
+                QMessageBox.information(self, "Результаты проверки",
+                                        "Мультиколлинеарность не обнаружена.")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при проверке на мультиколлинеарность: {e}")
 
     def build_linear_regression(self):
         if self.dataframe is None:
@@ -174,6 +220,7 @@ class MainWindow(QMainWindow):
 
         except (ValueError, KeyError, Exception) as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
+
     def calculate_rmse(self):
         if self.dataframe is None:
             QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV.")
@@ -181,7 +228,6 @@ class MainWindow(QMainWindow):
 
         target_column = "y"
         try:
-
             coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
             linear_func = MathFunctions.create_linear_function(coefficients)
             rmse_value = MathFunctions.calculate_rmse(self.dataframe, linear_func, target_column)
