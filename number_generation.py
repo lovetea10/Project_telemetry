@@ -43,67 +43,26 @@ class GeneratingNumbers (object):
         plt.show()"""
 
 
-class ArrayGeneration(GeneratingNumbers):
-    def __init__(self, distribution_options, size1, size2, parametr1, parametr2):
-        self.distribution_options = distribution_options
-        self.size1 = size1
-        self.size2 = size2
-        self.parametr1 = parametr1
-        self.parametr2 = parametr2
+class Array2DGeneration(GeneratingNumbers):
+    def __init__(self, distribution_options, amount_of_rows, amount_of_columns, parametr1, parametr2):
+        super().__init__(distribution_options, amount_of_rows * amount_of_columns, parametr1, parametr2)
+        self.amount_of_rows = amount_of_rows
+        self.amount_of_columns = amount_of_columns
 
-    #создаю двумерный массив и сохраняю, используя наследственный метод
-    def creating(self, distribution_options, size1, size2, parametr1, parametr2):
-        arraysize = size1*size2
-        array1d = super().option_recognition(distribution_options, arraysize, parametr1, parametr2)
-        array2d = np.reshape(array1d, (size1, size2))
-        return array2d
-    
-    #сохранение двумерного массива в csv
-    def data_save(self, array2d):
-        with open("random_data_array_2d", mode='w', newline='') as file:
+    def generate_2d_array(self):
+        # Генерация двумерного массива
+        numbers = self.option_recognition(self.distribution_options, self.amount_of_numbers, self.parametr1, self.parametr2)
+        return numbers.reshape((self.amount_of_rows, self.amount_of_columns))
+
+    def data_save(self, numbers):
+        with open("random_data_array_2d.csv", mode='w', newline='') as file:
             writer = csv.writer(file)
-            writer.writerows(array2d)
-        print("Successfully saved")
-
-    
-#просим на вход вариант распределения, кол-во чисел
-distribution_options = int(input ("select the distribution option, 1 - uniform, 2 - normal, 3 - Pierce's law, 4 - Fisher's law  "))
-
-amount_of_numbers = int(input("set the number of generated numbers  "))
-
-print("write parametrs for generating of numbers   ")
-
-#для последних двух действует ограничение: они > 0 
-parametr1 = int(input())
-parametr2 = int(input())
-
-if distribution_options == 3 or distribution_options == 4:
-    if parametr1 > 0 and parametr2 > 0:
-        pass
-    else:
-        print("invalid values, please specify positive values")
-        
-#задание размера массива
-size1 = int(input("введите предполагаемый размер массива    "))
-size2 = int(input())
-
-amount_of_numbers = size1*size2
-
-obj = GeneratingNumbers(distribution_options, amount_of_numbers, parametr1, parametr2)
-
-#сохраним массив для визуализации
-our_data1d = obj.option_recognition(distribution_options, amount_of_numbers, parametr1, parametr2)
-
-#сохраняем его в csv
-obj.data_save(our_data1d)
-
-"""# Визуализация результатов
-obj.visualisation(our_data1d)"""
+            writer.writerows(numbers)
 
 
-array2d = ArrayGeneration(distribution_options, size1, size2, parametr1, parametr2)
-
-#сохраним массив
-our_data2d = array2d.creating(distribution_options, size1, size2, parametr1, parametr2)
-
-array2d.data_save(our_data2d)
+if __name__ == "__main__":
+    # Генерация двумерного массива с нормальным распределением
+    generator = Array2DGeneration(distribution_options=2, amount_of_rows=5, amount_of_columns=4, parametr1=0, parametr2=1)
+    array_2d = generator.generate_2d_array()
+    print(array_2d)
+    generator.data_save(array_2d)
