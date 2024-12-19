@@ -60,7 +60,7 @@ class TestMathFunctions(unittest.TestCase):
 
     def test_check_multicollinearity(self):
         result = MathFunctions.check_multicollinearity(self.df, 'target')
-        self.assertIsInstance(result, list)  # Проверяем, что результат - это список
+        self.assertIsInstance(result, list)
 
 if __name__ == '__main__':
     unittest.main()
