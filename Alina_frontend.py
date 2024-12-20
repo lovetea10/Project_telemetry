@@ -34,7 +34,7 @@ class MyFigure(FigureCanvas):
         self.ax.legend()
         self.draw()
 
-    def plot_polynomial_regression(self, x, y, regression_line, color='green', label='Регрессия по многочлену'):
+    def plot_polynomial_regression(self, x, y, regression_line, color='lime', label='Регрессия по многочлену'):
         self.ax.clear()
         self.ax.plot(x, y, 'o', label='Данные')
         self.ax.plot(x, regression_line, color=color, label=label)
@@ -508,13 +508,15 @@ class MainWindow(QMainWindow):
                 return x
             elif func == "1":
                 return np.ones(len(x))
+            elif 'cos(x)' == func:
+                return np.cos(x)
+            elif 'sin(x)' == func:
+                return np.sin(x)
             else:
                 try:
                     return float(func) * np.ones(len(x))
-
                 except:
                     return np.ones(len(x))
-
         except Exception as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при применении функции {func}: {e}")
             return None
@@ -551,7 +553,7 @@ class MainWindow(QMainWindow):
                 results = model.fit()
                 regression_line = results.predict(X)
 
-                self.figure2.plot_polynomial_regression(x, y, regression_line, color='lime',
+                self.figure2.plot_polynomial_regression(x, y, regression_line, color='green',
                                                         label="Регрессия по введенным функциям")
         except (ValueError, KeyError, Exception) as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
