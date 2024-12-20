@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton,
-    QFileDialog, QDialog, QLabel, QHBoxLayout, QMessageBox, QLineEdit, QComboBox, QListWidget
+    QFileDialog, QDialog, QLabel, QHBoxLayout, QMessageBox, QLineEdit, QComboBox,
+    QListWidget, QRadioButton, QButtonGroup
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -12,6 +13,7 @@ import scipy.stats as stats
 import re
 from sympy import symbols, sympify, lambdify, sin, cos
 from PyQt5.QtGui import QDoubleValidator
+import statsmodels.api as sm
 
 
 class MyFigure(FigureCanvas):
@@ -32,10 +34,10 @@ class MyFigure(FigureCanvas):
         self.ax.legend()
         self.draw()
 
-    def plot_polynomial_regression(self, x, y, regression_line):
+    def plot_polynomial_regression(self, x, y, regression_line, color='green', label='Регрессия по многочлену'):
         self.ax.clear()
         self.ax.plot(x, y, 'o', label='Данные')
-        self.ax.plot(x, regression_line, color='red', label='Регрессия по многочлену')
+        self.ax.plot(x, regression_line, color=color, label=label)
         self.ax.set_title('Регрессия по многочлену')
         self.ax.grid(True)
         self.ax.legend()
@@ -57,21 +59,47 @@ class PolynomialInputDialog(QDialog):
         self.layout = QVBoxLayout(self)
 
         self.input_field = QLineEdit(self)
-        self.input_field.setPlaceholderText("Введите многочлен в формате: sin(x)-2*cos(x)+7*x^2+6*x^3+3")
+        self.input_field.setPlaceholderText("Введите многочлен в формате: x^2-1,x,x^3")
         self.layout.addWidget(self.input_field)
 
-        self.submit_button = QPushButton("Подтвердить", self)
-        self.submit_button.clicked.connect(self.submit)
-        self.layout.addWidget(self.submit_button)
+        # Выбор графика для построения
+        self.graph_select_label = QLabel("Выберите график для построения:", self)
+        self.layout.addWidget(self.graph_select_label)
+
+        self.graph_button_group = QButtonGroup(self)
+
+        self.graph1_radio = QRadioButton("Для графика 1", self)
+        self.graph_button_group.addButton(self.graph1_radio)
+        self.layout.addWidget(self.graph1_radio)
+
+        self.graph2_radio = QRadioButton("Для графика 2", self)
+        self.graph_button_group.addButton(self.graph2_radio)
+        self.layout.addWidget(self.graph2_radio)
+
+        self.selected_figure = None
+
+        self.polynomial_regression_button = QPushButton('Построить регрессию по системе функции', self)
+        self.polynomial_regression_button.clicked.connect(self.on_build_regression_click)
+        self.layout.addWidget(self.polynomial_regression_button)
 
         self.polynomial = None
 
-    def submit(self):
-        text = self.input_field.text()
-        if text:
-            self.polynomial = text
-            QMessageBox.information(self, "Введённый многочлен", f"Вы ввели:\n{text}")
-            self.accept()
+    def on_build_regression_click(self):
+        if self.graph1_radio.isChecked():
+            self.selected_figure = 1
+        elif self.graph2_radio.isChecked():
+            self.selected_figure = 2
+        else:
+            QMessageBox.warning(self, "Предупреждение", "Выберите график")
+            return
+        self.polynomial = self.input_field.text()
+        self.accept()
+
+    def get_selected_figure(self):
+        return self.selected_figure
+
+    def get_polynomial(self):
+        return self.polynomial
 
 
 class InputArrayDialog(QDialog):
@@ -150,13 +178,11 @@ class InputArrayDialog(QDialog):
             QMessageBox.critical(self, "Ошибка сохранения", f"Ошибка сохранения в csv: {e}")
 
     def open_polynomial_dialog(self):
-        if self.parent().dataframe is None:
+        if self.parent().dataframe is None and self.parent().data_for_figure1 is None:
             QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV или введите двумерный массив.")
             return
         dialog = PolynomialInputDialog(self)
-        if dialog.exec_() == QDialog.Accepted:
-            print(f"Многочлен введён: {dialog.polynomial}")
-            self.parent().polynomial = dialog.polynomial  # Передача многочлена в главное окно
+        dialog.exec_()
 
 
 def option_recognition(option, rows, cols):
@@ -248,6 +274,10 @@ class MainWindow(QMainWindow):
         self.r_squared_layout.addWidget(self.r_squared_button2)
         layout.addLayout(self.r_squared_layout)
 
+        self.polynomial_regression_button = QPushButton('Регрессия по многочлену')
+        self.polynomial_regression_button.clicked.connect(self.open_polynomial_regression_dialog)
+        button_layout.addWidget(self.polynomial_regression_button)
+
         layout.addLayout(button_layout)
         layout.addStretch()
 
@@ -257,6 +287,7 @@ class MainWindow(QMainWindow):
         self.generated_array = None
         self.data_for_figure1 = None
         self.data_for_figure2 = None
+        self.selected_figure = None
 
     def input_2d_array(self):
         dialog = InputArrayDialog(self)
@@ -450,115 +481,123 @@ class MainWindow(QMainWindow):
         dialog.exec_()
 
     def parse_polynomial(self, polynomial_string):
-        """Парсит строку многочлена и возвращает список коэффициентов."""
+        """Парсит строку многочлена и возвращает список базовых функций."""
         polynomial_string = polynomial_string.replace(" ", "")
+        return polynomial_string.split(',')
 
-        # Заменяем ^ на ** для корректной обработки в Python
-        polynomial_string = polynomial_string.replace("^", "**")
+    def evaluate_polynomial(self, x, base_functions, coefficients):
+        """Вычисляет значение регрессии для заданных x, базовых функций и коэффициентов."""
+        X = np.array([self.apply_base_function(func, x) for func in base_functions]).T
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        X = sm.add_constant(X)
 
-        # Разделяем многочлен на слагаемые
-        terms = re.findall(
-            r"([+-]?\s*\d*\.?\d*\s*(?:\*\s*[a-z]+\(\s*[a-z]\s*\))?|\d*\.?\d*\s*(?:\*\s*[a-z]\s*\**\s*\d*)?|[-+]?\d*\.?\d*)",
-            polynomial_string)
+        results = sm.OLS(x, X).fit()
+        return results.predict(X)
 
-        coefficients = []
-        x = symbols('x')
-        for term in terms:
-            term = term.replace(" ", "")
-            if term:
+    def apply_base_function(self, func, x):
+
+        func = func.replace("^", "**")
+        try:
+            if 'x**' in func:
+
+                power_str = func.split('**')[1]
+                power = float(power_str)
+                return x ** power
+            elif 'x' in func:
+                return x
+            elif func == "1":
+                return np.ones(len(x))
+            else:
                 try:
-                    if 'sin(x)' in term:
-                        coeff = float(term.replace('sin(x)', '')) if term.replace('sin(x)', '') else 1.0
-                        coefficients.append(coeff)
-                    elif 'cos(x)' in term:
-                        coeff = float(term.replace('cos(x)', '')) if term.replace('cos(x)', '') else 1.0
-                        coefficients.append(coeff)
-                    elif 'x**' in term:
-                        coeff_str = term.split('*x**')[0]
-                        coeff = float(coeff_str) if coeff_str else 1.0
-                        coefficients.append(coeff)
-                    elif 'x' in term:
-                        coeff_str = term.split('*x')[0]
-                        coeff = float(coeff_str) if coeff_str else 1.0
-                        coefficients.append(coeff)
-                    elif re.match(r'[-+]?\d*\.?\d*$', term):  # Это константа
-                        coeff = float(term)
-                        coefficients.append(coeff)
-                except Exception as e:
-                    QMessageBox.critical(self, "Ошибка", f"Ошибка при парсинге многочлена {term}: {e}")
-                    return None
-        return coefficients
+                    return float(func) * np.ones(len(x))
 
-    def build_linear_regression(self, figure_num):
-        if figure_num == 1 and self.data_for_figure1 is None and self.polynomial is None or figure_num == 2 and self.dataframe is None and self.polynomial is None:
+                except:
+                    return np.ones(len(x))
+
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при применении функции {func}: {e}")
+            return None
+
+    def build_polynomial_regression(self, selected_figure, polynomial):
+        if selected_figure == 1 and self.data_for_figure1 is None or selected_figure == 2 and self.dataframe is None:
             QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные для этого графика.")
             return
+        try:
+            base_functions = self.parse_polynomial(polynomial)
+            if not base_functions:
+                return  # Парсинг не удался
+
+            if selected_figure == 1:
+                x = self.data_for_figure1[:, 0]
+                y = self.data_for_figure1[:, 1]
+
+                X = np.array([self.apply_base_function(func, x) for func in base_functions]).T
+                X = sm.add_constant(X)
+                model = sm.OLS(y, X)
+                results = model.fit()
+                regression_line = results.predict(X)
+                self.figure1.plot_polynomial_regression(x, y, regression_line, color='lime',
+                                                        label="Регрессия по введенным функциям")
+
+            if selected_figure == 2:
+                x = self.dataframe.iloc[:, 0].values  # Предполагается, что 'x' в первом столбце
+                y = self.dataframe.iloc[:, 1].values  # 'y' во втором столбце
+
+                X = np.array([self.apply_base_function(func, x) for func in base_functions]).T
+                X = sm.add_constant(X)
+
+                model = sm.OLS(y, X)
+                results = model.fit()
+                regression_line = results.predict(X)
+
+                self.figure2.plot_polynomial_regression(x, y, regression_line, color='lime',
+                                                        label="Регрессия по введенным функциям")
+        except (ValueError, KeyError, Exception) as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
+
+    def open_polynomial_regression_dialog(self):
+        if self.dataframe is None and self.data_for_figure1 is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные из CSV или введите двумерный массив.")
+            return
+        dialog = PolynomialInputDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            polynomial = dialog.get_polynomial()
+            selected_figure = dialog.get_selected_figure()
+            if polynomial and selected_figure:
+                self.build_polynomial_regression(selected_figure, polynomial)
+
+    def build_linear_regression(self, figure_num):
+        if figure_num == 1 and self.data_for_figure1 is None or figure_num == 2 and self.dataframe is None:
+            QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные для этого графика.")
+            return
+
         target_column = "y"
         try:
-            if self.polynomial is None:  # Выполнение линейной регрессии, если многочлен не задан
-                if figure_num == 1:
-                    x = self.data_for_figure1[:, 0]
-                    y = self.data_for_figure1[:, 1]
-                    coefficients = MathFunctions.calculate_mnk_coefficients(pd.DataFrame({'x': x, 'y': y}), 'y')
-                    linear_func = MathFunctions.create_linear_function(coefficients)
-                    regression_line = np.array([linear_func(x_val) for x_val in x])
-                    self.figure1.plot_data(x, y, regression_line)
-                    r_squared = MathFunctions.calculate_r_squared(pd.DataFrame({'x': x, 'y': y}), 'y', regression_line)
-                    QMessageBox.information(self, "Результат регрессии",
-                                            f"Коэффициенты: {coefficients}, R^2: {r_squared}")
-                if figure_num == 2:
-                    coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
-                    if len(self.dataframe) <= len(coefficients):
-                        raise ValueError("Not enough data for regression.")
-                    linear_func = MathFunctions.create_linear_function(coefficients)
-                    x_values = self.dataframe.drop(columns=[target_column]).values
-                    if x_values.shape[1] > 1:
-                        regression_line = np.array([linear_func(*row) for row in x_values])
-                    else:
-                        regression_line = np.array([linear_func(x) for x in x_values.flatten()])
-                    self.figure2.plot_data(x_values.flatten(), self.dataframe[target_column].values, regression_line)
-                    r_squared = MathFunctions.calculate_r_squared(self.dataframe, target_column, regression_line)
-                    QMessageBox.information(self, "Результат регрессии",
-                                            f"Коэффициенты: {coefficients}, R^2: {r_squared}")
+            if figure_num == 1:
+                x = self.data_for_figure1[:, 0]
+                y = self.data_for_figure1[:, 1]
+                coefficients = MathFunctions.calculate_mnk_coefficients(pd.DataFrame({'x': x, 'y': y}), 'y')
+                linear_func = MathFunctions.create_linear_function(coefficients)
+                regression_line = np.array([linear_func(x_val) for x_val in x])
+                self.figure1.plot_data(x, y, regression_line)
+                r_squared = MathFunctions.calculate_r_squared(pd.DataFrame({'x': x, 'y': y}), 'y', regression_line)
+                QMessageBox.information(self, "Результат регрессии", f"Коэффициенты: {coefficients}, R^2: {r_squared}")
+            if figure_num == 2:
+                coefficients = MathFunctions.calculate_mnk_coefficients(self.dataframe, target_column)
+                if len(self.dataframe) <= len(coefficients):
+                    raise ValueError("Not enough data for regression.")
+                linear_func = MathFunctions.create_linear_function(coefficients)
+                x_values = self.dataframe.drop(columns=[target_column]).values
+                if x_values.shape[1] > 1:
+                    regression_line = np.array([linear_func(*row) for row in x_values])
+                else:
+                    regression_line = np.array([linear_func(x) for x in x_values.flatten()])
+                self.figure2.plot_data(x_values.flatten(), self.dataframe[target_column].values, regression_line)
+                r_squared = MathFunctions.calculate_r_squared(self.dataframe, target_column, regression_line)
+                QMessageBox.information(self, "Результат регрессии", f"Коэффициенты: {coefficients}, R^2: {r_squared}")
 
 
-            else:  # Выполнение регрессии по многочлену, если задан
-                x = symbols('x')
-                try:
-                    expr = sympify(self.polynomial)
-                except Exception as e:
-                    QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
-                    return
-
-                func = lambdify(x, expr, modules=['numpy',
-                                                  {'sin': np.sin, 'cos': np.cos}])
-                coefficients = self.parse_polynomial(self.polynomial)
-                if coefficients is None:
-                    return
-                if figure_num == 1:
-                    if self.data_for_figure1 is None:
-                        QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные для 1 графика.")
-                        return
-                    x_values = self.data_for_figure1[:, 0]
-                    regression_line = np.array([func(val) for val in x_values])
-                    y = self.data_for_figure1[:, 1]
-                    self.figure1.plot_polynomial_regression(x_values, y, regression_line)
-                    r_squared = MathFunctions.calculate_r_squared(pd.DataFrame({'x': x_values, 'y': y}), 'y',
-                                                                  regression_line)
-                    QMessageBox.information(self, "Результат регрессии",
-                                            f"Регрессия по многочлену, R^2: {r_squared}, Коэффициенты: {coefficients}")
-
-                if figure_num == 2:
-                    if self.dataframe is None:
-                        QMessageBox.warning(self, "Ошибка", "Сначала загрузите данные для 2 графика.")
-                        return
-                    x_values = self.dataframe.drop(columns=[target_column]).values.flatten()
-                    regression_line = np.array([func(val) for val in x_values])
-                    self.figure2.plot_polynomial_regression(x_values, self.dataframe[target_column].values,
-                                                            regression_line)
-                    r_squared = MathFunctions.calculate_r_squared(self.dataframe, target_column, regression_line)
-                    QMessageBox.information(self, "Результат регрессии",
-                                            f"Регрессия по многочлену, R^2: {r_squared}, Коэффициенты: {coefficients}")
 
         except (ValueError, KeyError, Exception) as e:
             QMessageBox.critical(self, "Ошибка", f"Ошибка при построении регрессии: {e}")
