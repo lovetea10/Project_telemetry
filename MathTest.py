@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from EngPrak import MathFunctions 
+from Liza_backend import MathFunctions 
 
 class TestMathFunctions(unittest.TestCase):
 

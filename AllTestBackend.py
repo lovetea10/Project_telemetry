@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import tempfile
 from typing import Union
-from EngPrak import DataEditor 
+from Liza_backend import DataEditor 
 
 class TestReadCSVToDataFrame(unittest.TestCase):
 

@@ -9,7 +9,6 @@ from scipy.optimize import minimize
 import scipy.stats as stats
 from typing import Union, Callable
 
-
 class DataEditor:
     def read_csv_to_dataframe(file_path: str) -> pd.DataFrame:
         """
@@ -34,6 +33,7 @@ class DataEditor:
             raise PermissionError(f"Нет доступа к файлу '{absolute_path}'. Проверьте права доступа.")
         except Exception as e:
             raise Exception(f"Произошла ошибка при чтении файла '{absolute_path}': {str(e)}")
+
 
     def get_data_from_db(db_type: str, **kwargs) -> pd.DataFrame:
         """
@@ -93,13 +93,11 @@ class DataEditor:
                 conn.close()
 
             elif db_type == 'postgres':
-                engine = create_engine(
-                    f"postgresql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
+                engine = create_engine(f"postgresql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
                 df = pd.read_sql_query(kwargs['query'], engine)
 
             elif db_type == 'mysql':
-                engine = create_engine(
-                    f"mysql+pymysql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
+                engine = create_engine(f"mysql+pymysql://{kwargs['user']}:{kwargs['password']}@{kwargs['host']}:{kwargs['port']}/{kwargs['dbname']}")
                 df = pd.read_sql_query(kwargs['query'], engine)
 
             elif db_type == 'mongodb':
@@ -120,6 +118,8 @@ class DataEditor:
             print(f"An error occurred: {e}")
 
         return None
+
+
 
     def save_dataframe_to_db(df: pd.DataFrame, db_type: str, **kwargs) -> None:
         """
@@ -214,8 +214,7 @@ class DataEditor:
         except Exception as e:
             print(f"An error occurred: {e}")
 
-    def filter_dataframe(df: pd.DataFrame, filter_type: str = 'any', columns: list = None, inplace: bool = False) -> \
-    Union[pd.DataFrame, None]:
+    def filter_dataframe(df: pd.DataFrame, filter_type: str = 'any', columns: list = None, inplace: bool = False) -> Union[pd.DataFrame, None]:
         """
         Фильтрует DataFrame по заданным критериям.
 
@@ -243,7 +242,6 @@ class DataEditor:
         else:
             return filtered_df
 
-
 class MathFunctions:
     def create_linear_function(params: np.ndarray) -> Callable:
         """
@@ -270,6 +268,7 @@ class MathFunctions:
 
         return linear_function
 
+
     def calculate_mnk_coefficients(df: pd.DataFrame, target_column: str) -> np.ndarray:
         """
         Вычисляет коэффициенты метода наименьших квадратов (МНК) для заданного DataFrame.
@@ -292,9 +291,12 @@ class MathFunctions:
 
         Y = df[target_column]
 
+
         X = df.drop(columns=[target_column])
 
+
         X = sm.add_constant(X)
+
 
         if X.shape[0] < X.shape[1]:
             raise ValueError("Недостаточно данных для вычисления коэффициентов.")
@@ -308,7 +310,7 @@ class MathFunctions:
         Вычисляет среднеквадратичное отклонение (СКО) для линейной регрессии.
 
         Параметры:
-        df : pd.DataFrame
+        df : pd.DataFrame 
             DataFrame, где одна из колонок - это y, а остальные - это x.
         model_function : Callable
             Функция, которая принимает значения x и возвращает предсказанное значение y.
@@ -337,8 +339,8 @@ class MathFunctions:
 
         return rmse
 
-    def regression_with_loss_function(df: pd.DataFrame, target_column: str, functions: list,
-                                      loss_function: Callable) -> dict:
+
+    def regression_with_loss_function(df: pd.DataFrame, target_column: str, functions: list, loss_function: Callable) -> dict:
         """
         Строит регрессию на основе заданных функций и минимизирует функцию потерь.
 
@@ -356,6 +358,7 @@ class MathFunctions:
         loss_functions : dict
             Словарь с функциями и минимизированными значениями функции потерь.
         """
+
 
         if target_column not in df.columns:
             raise ValueError(f"Целевая колонка '{target_column}' не найдена в DataFrame.")
@@ -382,6 +385,7 @@ class MathFunctions:
 
         return results
 
+
     def confidence_interval(df: pd.DataFrame, target_column: str, confidence_level: float = 0.95) -> tuple:
         """
         Вычисляет доверительный интервал для стандартного отклонения зависимой переменной.
@@ -390,35 +394,35 @@ class MathFunctions:
         :param target_column: строка, имя столбца зависимой переменной.
         :param confidence_level: уровень доверия (по умолчанию 0.95). Должен быть в диапазоне (0, 1).
         :return: кортеж (нижняя граница, верхняя граница) доверительного интервала для стандартного отклонения.
-
+    
         :raises ValueError: если target_column не существует в DataFrame или если confidence_level не в диапазоне (0, 1).
         """
-
+    
         if target_column not in df.columns:
             raise ValueError(f"Столбец '{target_column}' не найден в DataFrame.")
 
         if not (0 < confidence_level < 1):
             raise ValueError("Уровень доверия должен быть в диапазоне (0, 1).")
-
+    
         data = df[target_column].dropna()
-
+    
         n = len(data)
         if n < 2:
-            raise ValueError(
-                "Недостаточно данных для расчета доверительного интервала (необходимы как минимум 2 наблюдения).")
-
+            raise ValueError("Недостаточно данных для расчета доверительного интервала (необходимы как минимум 2 наблюдения).")
+    
         std_dev = np.std(data, ddof=1)
-
+    
         std_error = std_dev / np.sqrt(n)
-
+    
         alpha = 1 - confidence_level
-        critical_value = stats.t.ppf(1 - alpha / 2, df=n - 1)
-
+        critical_value = stats.t.ppf(1 - alpha/2, df=n-1)
+    
         margin_of_error = critical_value * std_error
         lower_bound = std_dev - margin_of_error
         upper_bound = std_dev + margin_of_error
-
+    
         return lower_bound, upper_bound
+
 
     def calculate_r_squared(df: pd.DataFrame, target_column: str, regression: list) -> float:
         """
@@ -429,7 +433,7 @@ class MathFunctions:
         :param regression: Список значений независимых переменных.
         :return: Коэффициент детерминации (R²).
         """
-
+    
         y = df[target_column].values
         y_pred = np.array(regression)
 
@@ -437,7 +441,7 @@ class MathFunctions:
             raise ValueError("Размерности y и y_pred должны совпадать.")
 
         ss_total = np.sum((y - np.mean(y)) ** 2)
-
+    
         if ss_total == 0:
             raise ValueError("Общая сумма квадратов равна нулю. Проверьте целевую переменную.")
 
@@ -446,6 +450,8 @@ class MathFunctions:
         r_squared = 1 - (ss_residual / ss_total)
 
         return r_squared
+
+
 
     def f_test_regression_significance(df: pd.DataFrame, target_column: str, regression: list, alpha: float) -> dict:
         """
@@ -457,7 +463,7 @@ class MathFunctions:
         :param alpha: Уровень значимости.
         :return: Словарь с результатами теста.
         """
-
+    
         if target_column not in df.columns:
             return {'Error': f'Целевая переменная "{target_column}" не найдена в DataFrame.'}
 
@@ -474,6 +480,7 @@ class MathFunctions:
         if len(X) != len(y):
             return {'Error': 'Количество наблюдений в независимых переменных и целевой переменной не совпадает.'}
 
+
         ss_total = np.sum((y - np.mean(y)) ** 2)
         ss_regression = np.sum((y_pred - np.mean(y)) ** 2)
         ss_residual = np.sum((y - y_pred) ** 2)
@@ -489,7 +496,7 @@ class MathFunctions:
 
         f_statistic = ms_regression / ms_residual
 
-        p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n - k - 1)
+        p_value = 1 - stats.f.cdf(f_statistic, dfn=k, dfd=n-k-1)
 
         significant = p_value < alpha
 
@@ -499,39 +506,40 @@ class MathFunctions:
             'Significant': significant
         }
 
+
+
     def check_multicollinearity(df: pd.DataFrame, target_column: str):
         features = df.columns[df.columns != target_column]
         multicollinear_features = []
 
         y_target = df[target_column].values
-
+    
         for feature in features:
             y_feature = df[feature].values
-
+        
             X = df[features[features != feature]].values
-
+        
             X = np.hstack((np.ones((X.shape[0], 1)), X))
-
+        
             beta = np.linalg.inv(X.T @ X) @ (X.T @ y_feature)
-
+        
             y_pred = X @ beta
-
+        
             ss_total = np.sum((y_feature - np.mean(y_feature)) ** 2)
             ss_residual = np.sum((y_feature - y_pred) ** 2)
             r_squared = 1 - (ss_residual / ss_total)
-
+        
             if r_squared > 0.7:
                 multicollinear_features.append(feature)
 
         return multicollinear_features
-
-
+    
 if __name__ == "__main__":
     df = pd.DataFrame({
-        'A': [1, 2, 3, 4],
-        'B': [2, 4, 6, 9],
-        'C': [1, 3, 2, 4],
-        'target': [1, 2, 3, 4]
+     'A': [1, 2, 3, 4],
+     'B': [2, 4, 6, 9],
+     'C': [1, 3, 2, 4],
+     'target': [1, 2, 3, 4]
     })
     y = MathFunctions.create_linear_function([4.7, 0.6, 1.0, -4.1])
     print(y(1, 2, 3))
